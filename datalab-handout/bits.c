@@ -143,7 +143,9 @@ NOTES:
  *   Rating: 1
  */
 int bitXor(int x, int y) {
-  return 2;
+  int a = x & ~y;
+  int b = ~x & y;
+  return ~(~a & ~b);
 }
 /* 
  * tmin - return minimum two's complement integer 
@@ -152,9 +154,7 @@ int bitXor(int x, int y) {
  *   Rating: 1
  */
 int tmin(void) {
-
-  return 2;
-
+  return 1 << 31;
 }
 //2
 /*
@@ -165,7 +165,9 @@ int tmin(void) {
  *   Rating: 1
  */
 int isTmax(int x) {
-  return 2;
+  // x + 1 + x should be all ones
+  // x + 1 should not be zero
+  return (!(~(x + 1 + x))) & (!(!(x+1)))  ;
 }
 /* 
  * allOddBits - return 1 if all odd-numbered bits in word set to 1
@@ -176,7 +178,12 @@ int isTmax(int x) {
  *   Rating: 2
  */
 int allOddBits(int x) {
-  return 2;
+  int tmp = 0xAA;
+  int t0 = x & tmp;
+  int t1 = x >> 8 & t0;
+  int t2 = x >> 16 & t1;
+  int t3 = x >> 24 & t2;
+  return !(t3 ^ tmp);
 }
 /* 
  * negate - return -x 
@@ -186,7 +193,7 @@ int allOddBits(int x) {
  *   Rating: 2
  */
 int negate(int x) {
-  return 2;
+  return ~x + 1;
 }
 //3
 /* 
@@ -199,7 +206,13 @@ int negate(int x) {
  *   Rating: 3
  */
 int isAsciiDigit(int x) {
-  return 2;
+  // only look at last 6 digits
+  int tmp1 = !(x >> 6);
+  // have 11xxxx
+  int tmp2 = !((x & 0x30) ^ 0x30);
+  // after +6, still have 11xxxx
+  int tmp3 = !(((x+6) & 0x30) ^ 0x30);
+  return tmp1 & tmp2 & tmp3;
 }
 /* 
  * conditional - same as x ? y : z 
@@ -209,7 +222,10 @@ int isAsciiDigit(int x) {
  *   Rating: 3
  */
 int conditional(int x, int y, int z) {
-  return 2;
+  int tmp1 = ~(!x)+1;
+  int tmp2 = ~tmp1 & y;
+  int tmp3 = tmp1 & z; 
+  return tmp2 | tmp3;
 }
 /* 
  * isLessOrEqual - if x <= y  then return 1, else return 0 
@@ -219,7 +235,12 @@ int conditional(int x, int y, int z) {
  *   Rating: 3
  */
 int isLessOrEqual(int x, int y) {
-  return 2;
+  int nx = ~x +1;
+  int tmp1 = y + nx;
+  // tmp1 might overflow, also need to check the sign of y and x
+  int tmp2 = (!(y >> 31)) & (x >> 31);
+  int tmp3 = (y >> 31) & (!(x >> 31));
+  return (!tmp3 & (!(tmp1 >> 31 & 1))) | tmp2;
 }
 //4
 /* 
@@ -231,7 +252,12 @@ int isLessOrEqual(int x, int y) {
  *   Rating: 4 
  */
 int logicalNeg(int x) {
-  return 2;
+  int tmp1 = x | (x >> 16);
+  int tmp2 = tmp1 | (tmp1 >> 8);
+  int tmp3 = tmp2 | (tmp2 >> 4);
+  int tmp4 = tmp3 | (tmp3 >> 2);
+  int tmp5 = tmp4 | (tmp4 >> 1);
+  return (tmp5 & 1) ^ 1;
 }
 /* howManyBits - return the minimum number of bits required to represent x in
  *             two's complement
@@ -246,7 +272,53 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  return 0;
+  // if x < 0, not x
+  int isNeg = !(!(x & 1 << 31));
+  int isNegMask = ~isNeg + 1; // if is neg, isNegMask = 0xFFFFFFFF
+  int x1 = x ^ isNegMask; // if is neg, x would become not x
+
+  int tmp1 = x1 >> 16;
+  int allZero1 = !tmp1;
+  int mask1 = ~allZero1 + 1; // mask = 0xFFFFFF if allZero, 0x00 otherwise
+  // if allZero, ans += 16 
+  int ans1 = 16 & mask1;
+  // determine left part or right part
+  // if allZero, right part, else left part
+  int x2 = x1 << (16 & mask1);
+  
+  int tmp2 = x2 >> 24;
+  int allZero2 = !tmp2;
+  int mask2 = ~allZero2 + 1;
+  int ans2 = ans1 + (8 & mask2);
+  int x3 = x2 << (8 & mask2);
+
+  int tmp3 = x3 >> 28;
+  int allZero3 = !tmp3;
+  int mask3 = ~allZero3 + 1;
+  int ans3 = ans2 + (4 & mask3);
+  int x4 = x3 << (4 & mask3);
+
+  int tmp4 = x4 >> 30;
+  int allZero4 = !tmp4;
+  int mask4 = ~allZero4 + 1;
+  int ans4 = ans3 + (2 & mask4);
+  int x5 = x4 << (2 & mask4);
+
+  int tmp5 = x5 >> 31;
+  int allZero5 = !tmp5;
+  int mask5 = ~allZero5 + 1;
+  int ans5 = ans4 + (1 & mask5);
+  int x6 = x5 << (1 & mask5);
+
+  int tmp6 = x6 >> 31;
+  int allZero6 = !tmp6;
+  int mask6 = ~allZero6 + 1;
+  int ans6 = ans5 + (1 & mask6);
+
+  int ans7 = 32 + (~ans6 + 1);
+  int ans8 = ans7 + 1; //!(originX >> 31) - !(originX);
+  //printf("debug x:%d isNeg:%d isNegMask:%d x1:%d ans1:%d ans2:%d ans3:%d tmp2:%d allZero2:%d mask2:%d ans6:%d\n", x, isNeg, isNegMask, x1, ans1, ans2, ans3, tmp2, allZero2, mask2, ans6);
+  return ans8;
 }
 //float
 /* 
